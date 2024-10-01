@@ -18,23 +18,6 @@ pub struct JumpEvent {
 }
 
 #[derive(Event)]
-pub struct FireEvent {
-    pub entity: Entity,
-    pub cam_origin: Vec3,
-    pub direction: Vec3,
-    pub barrel_origin: Vec3,
-}
-
-#[derive(Event, Debug)]
-pub struct HitEvent {
-    pub hitter_id: String,
-    pub hitten: Entity,
-    #[allow(dead_code)]
-    pub weapon: String,
-    pub point: Vec3,
-}
-
-#[derive(Event)]
 pub struct ConnectEvent {
     pub player_id: String,
 }
