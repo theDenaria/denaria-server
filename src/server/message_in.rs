@@ -1,6 +1,6 @@
-use crate::ecs::events::{ConnectEvent, FireEvent, JumpEvent, LookEvent, MoveEvent};
+use crate::ecs::events::{ConnectEvent, JumpEvent, LookEvent, MoveEvent};
 use crate::server::packet::SerializationError;
-use bevy::math::{Vec3, Vec4};
+use bevy::math::Vec4;
 use bevy::prelude::Entity;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
@@ -82,36 +82,6 @@ impl MessageIn {
             player_id: self.player_id.clone(),
         })
     }
-    pub fn to_fire_event(&self, player_entity: Entity) -> Result<FireEvent, SerializationError> {
-        if self.data.len() < 8 {
-            println!("Insufficent bytes: {:?}", self.data);
-            return Err(SerializationError::BufferTooShort);
-        }
-        let mut reader = Cursor::new(&self.data);
-
-        let cam_origin_x = reader.read_f32::<LittleEndian>()?;
-        let cam_origin_y = reader.read_f32::<LittleEndian>()?;
-        let cam_origin_z = reader.read_f32::<LittleEndian>()?;
-
-        let direction_x = reader.read_f32::<LittleEndian>()?;
-        let direction_y = reader.read_f32::<LittleEndian>()?;
-        let direction_z = reader.read_f32::<LittleEndian>()?;
-
-        let barrel_origin_x = reader.read_f32::<LittleEndian>()?;
-        let barrel_origin_y = reader.read_f32::<LittleEndian>()?;
-        let barrel_origin_z = reader.read_f32::<LittleEndian>()?;
-
-        let cam_origin = Vec3::new(cam_origin_x, cam_origin_y, cam_origin_z);
-        let direction = Vec3::new(direction_x, direction_y, direction_z);
-        let barrel_origin = Vec3::new(barrel_origin_x, barrel_origin_y, barrel_origin_z);
-
-        Ok(FireEvent {
-            entity: player_entity,
-            cam_origin,
-            direction,
-            barrel_origin,
-        })
-    }
 }
 
 #[derive(Debug)]
@@ -120,7 +90,6 @@ pub enum MessageInType {
     Move = 2,
     Rotation = 3,
     Jump = 4,
-    Fire = 5,
     Invalid = 99,
     // SessionCreate = 100,
     // SessionJoin = 101,
@@ -135,7 +104,6 @@ impl TryFrom<u8> for MessageInType {
             2 => Ok(MessageInType::Move),
             3 => Ok(MessageInType::Rotation),
             4 => Ok(MessageInType::Jump),
-            5 => Ok(MessageInType::Fire),
             // 100 => Ok(MessageInType::SessionCreate),
             _ => Ok(MessageInType::Invalid),
         }

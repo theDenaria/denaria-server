@@ -9,7 +9,9 @@ use bevy::prelude::Resource;
 use crossbeam::channel::{unbounded, Receiver, Sender, TryRecvError};
 
 use crate::{
-    constants::TRANSPORT_MAX_PACKET_BYTES, server::server::ClientId, sessions::new_session,
+    constants::{MAIN_SESSION_ID, TRANSPORT_MAX_PACKET_BYTES},
+    server::server::ClientId,
+    sessions::new_session,
 };
 
 use super::{
@@ -74,15 +76,11 @@ impl ServerTransport {
         })
     }
 
-    pub fn create_session(&mut self, id: u32, player_ids: Vec<String>) {
+    pub fn create_session(&mut self, id: u32) {
         // create bevy app in a new thread giving the channel receiver to the DenariaServer
         let (tx, rx) = unbounded::<ToDenariaServerMessage>();
 
         let from_denaria_server_tx = self.from_denaria_server_tx.clone();
-
-        for player_id in player_ids {
-            self.player_id_session_map.insert(player_id, id);
-        }
 
         self.session_to_denaria_server_tx.insert(id, tx);
 
@@ -127,7 +125,7 @@ impl ServerTransport {
             handle_server_result(
                 server_result,
                 &self.socket,
-                &self.player_id_session_map,
+                &mut self.player_id_session_map,
                 &self.session_to_denaria_server_tx,
                 &mut self.client_id_to_server_tx_map,
             );
@@ -155,11 +153,11 @@ impl ServerTransport {
                     if let Some(new_session_details) = handle_server_result(
                         server_result,
                         &self.socket,
-                        &self.player_id_session_map,
+                        &mut self.player_id_session_map,
                         &self.session_to_denaria_server_tx,
                         &mut self.client_id_to_server_tx_map,
                     ) {
-                        self.create_session(new_session_details.id, new_session_details.player_ids);
+                        self.create_session(new_session_details.id);
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
@@ -174,7 +172,7 @@ impl ServerTransport {
             handle_server_result(
                 server_result,
                 &self.socket,
-                &self.player_id_session_map,
+                &mut self.player_id_session_map,
                 &self.session_to_denaria_server_tx,
                 &mut self.client_id_to_server_tx_map,
             );
@@ -246,7 +244,7 @@ struct NewSessionDetails {
 fn handle_server_result(
     server_result: ServerResult,
     socket: &UdpSocket,
-    player_id_session_map: &HashMap<String, u32>,
+    player_id_session_map: &mut HashMap<String, u32>,
     session_to_denaria_server_tx: &HashMap<u32, Sender<ToDenariaServerMessage>>,
     client_id_to_server_tx_map: &mut HashMap<u64, Sender<ToDenariaServerMessage>>,
 ) -> Option<NewSessionDetails> {
@@ -282,22 +280,21 @@ fn handle_server_result(
             payload,
             player_id,
         } => {
-            if let Some(session_id) = player_id_session_map.get(&player_id) {
-                if let Some(sender) = session_to_denaria_server_tx.get(session_id) {
-                    if let Err(e) = sender.send(ToDenariaServerMessage::ClientConnected {
-                        client_id,
-                        addr,
-                        payload: payload.to_vec(),
-                        player_id,
-                    }) {
-                        tracing::error!(
-                            "Failed to send client connected message to client {client_id}: {e}"
-                        );
-                    }
-                    client_id_to_server_tx_map.insert(client_id, sender.clone());
+            if let Some(sender) = session_to_denaria_server_tx.get(&MAIN_SESSION_ID) {
+                if let Err(e) = sender.send(ToDenariaServerMessage::ClientConnected {
+                    client_id,
+                    addr,
+                    payload: payload.to_vec(),
+                    player_id: player_id.clone(),
+                }) {
+                    tracing::error!(
+                        "Failed to send client connected message to client {client_id}: {e}"
+                    );
                 }
-                send_packet(payload, addr);
+                player_id_session_map.insert(player_id, MAIN_SESSION_ID);
+                client_id_to_server_tx_map.insert(client_id, sender.clone());
             }
+            send_packet(payload, addr);
         }
         ServerResult::ClientDisconnected {
             client_id,
@@ -316,10 +313,6 @@ fn handle_server_result(
             if let Some(payload) = payload {
                 send_packet(payload, addr);
             }
-        }
-        ServerResult::CreateSession { id, player_ids } => {
-            tracing::info!("CreateSession: {id} {player_ids:?}");
-            return Some(NewSessionDetails { id, player_ids });
         }
     }
     None

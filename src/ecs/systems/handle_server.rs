@@ -4,7 +4,7 @@ use crate::{
     constants::TICK_DELTA,
     ecs::{
         components::{MoveInput, PlayerLookup},
-        events::{ConnectEvent, DisconnectEvent, FireEvent, LookEvent},
+        events::{ConnectEvent, DisconnectEvent, LookEvent},
     },
     server::{
         channel::DefaultChannel,
@@ -44,7 +44,6 @@ pub fn handle_server_messages(
     mut connect_event: EventWriter<ConnectEvent>,
     mut move_query: Query<&mut MoveInput>,
     mut look_event: EventWriter<LookEvent>,
-    mut fire_event: EventWriter<FireEvent>,
 ) {
     // Receive message from channel
 
@@ -84,18 +83,6 @@ pub fn handle_server_messages(
                             }
                             Err(_) => {
                                 tracing::error!("Failed to create MoveEvent");
-                            }
-                        }
-                    }
-                }
-                MessageInType::Fire => {
-                    if let Some(player_entity) = player_lookup.map.get(player_id) {
-                        match event_in.to_fire_event(*player_entity) {
-                            Ok(event) => {
-                                fire_event.send(event);
-                            }
-                            Err(_) => {
-                                tracing::error!("Failed to create FireEvent");
                             }
                         }
                     }

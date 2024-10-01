@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::{
-    ecs::components::{Health, Player},
+    ecs::components::Player,
     server::{channel::DefaultChannel, message_out::MessageOut, server::DenariaServer},
 };
 
@@ -27,20 +27,5 @@ pub fn on_transform_change(
         if let Some(rotation_message) = MessageOut::rotation_message(rotations) {
             server.broadcast_message(DefaultChannel::Unreliable, rotation_message.data);
         }
-    }
-}
-
-pub fn on_health_change(
-    query: Query<(&Player, &Health), Changed<Health>>,
-    mut server: ResMut<DenariaServer>,
-) {
-    let mut healths: Vec<(String, f32)> = vec![];
-    for (player, health) in &query {
-        healths.push((player.id.clone(), health.0));
-    }
-    if healths.len() > 0 {
-        tracing::info!("Sending health messages: {:?}", healths);
-        let health_message = MessageOut::health_message(healths);
-        server.broadcast_message(DefaultChannel::ReliableOrdered, health_message.data);
     }
 }

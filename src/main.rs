@@ -8,7 +8,7 @@ mod ecs;
 mod server;
 mod sessions;
 
-use constants::TICK_DELTA;
+use constants::{MAIN_SESSION_ID, TICK_DELTA};
 use server::transport::{server::server::ServerConfig, transport::ServerTransport};
 use tracing_subscriber::EnvFilter;
 
@@ -38,7 +38,7 @@ fn main() -> io::Result<()> {
     let mut transport = ServerTransport::new(server_config, socket)?;
 
     // create default session with player_ids from player1 to player10
-    transport.create_session(0, (1..=10).map(|i| format!("player{}", i)).collect());
+    transport.create_session(MAIN_SESSION_ID);
 
     loop {
         transport.update(TICK_DELTA).unwrap();

@@ -61,10 +61,7 @@ pub enum ServerResult<'a, 's> {
         payload: &'s mut [u8],
     },
     /// A payload received from the client.
-    Payload {
-        client_id: u64,
-        payload: &'a [u8],
-    },
+    Payload { client_id: u64, payload: &'a [u8] },
     /// A new client has connected
     ClientConnected {
         client_id: u64,
@@ -77,10 +74,6 @@ pub enum ServerResult<'a, 's> {
         client_id: u64,
         addr: SocketAddr,
         payload: Option<&'s mut [u8]>,
-    },
-    CreateSession {
-        id: u32,
-        player_ids: Vec<String>,
     },
 }
 
@@ -469,16 +462,6 @@ impl TransportServer {
                     } else {
                         return Ok(ServerResult::None);
                     }
-                }
-                Packet::CreateSession {
-                    client_identifier: _,
-                    session_id,
-                    player_ids,
-                } => {
-                    return Ok(ServerResult::CreateSession {
-                        id: session_id,
-                        player_ids,
-                    });
                 }
                 _ => Ok(ServerResult::None),
             }
