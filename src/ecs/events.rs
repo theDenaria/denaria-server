@@ -18,7 +18,7 @@ pub struct JumpEvent {
 }
 
 #[derive(Event)]
-pub struct ConnectEvent {
+pub struct SpawnEvent {
     pub player_id: String,
 }
 

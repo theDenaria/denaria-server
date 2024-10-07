@@ -1,4 +1,4 @@
-use crate::ecs::events::{ConnectEvent, JumpEvent, LookEvent, MoveEvent};
+use crate::ecs::events::{JumpEvent, LookEvent, MoveEvent, SpawnEvent};
 use crate::server::packet::SerializationError;
 use bevy::math::Vec4;
 use bevy::prelude::Entity;
@@ -69,16 +69,8 @@ impl MessageIn {
         })
     }
 
-    pub fn to_connect_event(&self) -> Result<ConnectEvent, SerializationError> {
-        if self.data.len() < 1 {
-            println!("Insufficent bytes: {:?}", self.data);
-            return Err(SerializationError::BufferTooShort);
-        }
-
-        let _message =
-            String::from_utf8(self.data.clone()).map_err(|_| SerializationError::CursorReadError);
-
-        Ok(ConnectEvent {
+    pub fn to_spawn_event(&self) -> Result<SpawnEvent, SerializationError> {
+        Ok(SpawnEvent {
             player_id: self.player_id.clone(),
         })
     }
@@ -86,7 +78,7 @@ impl MessageIn {
 
 #[derive(Debug)]
 pub enum MessageInType {
-    Connect = 0,
+    Spawn = 0,
     Move = 2,
     Rotation = 3,
     Jump = 4,
@@ -100,7 +92,7 @@ impl TryFrom<u8> for MessageInType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(MessageInType::Connect),
+            0 => Ok(MessageInType::Spawn),
             2 => Ok(MessageInType::Move),
             3 => Ok(MessageInType::Rotation),
             4 => Ok(MessageInType::Jump),
