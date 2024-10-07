@@ -7,7 +7,7 @@ use crate::{
     constants::{GRAVITY, JUMP_SPEED, VELOCITY_MUL},
     ecs::{
         components::{MoveInput, Player, PlayerBundle, PlayerLookup, VerticalVelocity},
-        events::{ConnectEvent, DisconnectEvent, LookEvent},
+        events::{DisconnectEvent, LookEvent, SpawnEvent},
     },
     server::{channel::DefaultChannel, message_out::MessageOut, server::DenariaServer},
 };
@@ -36,7 +36,9 @@ pub fn handle_character_movement(
         move_input.z = 0.0;
 
         movement.y = v_velocity.0;
-        controller.translation = Some(movement);
+        if movement != Vec3::ZERO {
+            controller.translation = Some(movement);
+        }
     }
 }
 
@@ -45,18 +47,19 @@ pub fn handle_look_events(
     mut query: Query<&mut Transform>,
 ) {
     for event in look_events.read() {
+        tracing::info!("Look event: {:?}", event);
         if let Ok(mut transform) = query.get_mut(event.entity) {
             transform.rotation = Quat::from_vec4(event.direction);
         }
     }
 }
 
-pub fn handle_connect_events(
+pub fn handle_spawn_events(
     mut commands: Commands,
-    mut connect_events: EventReader<ConnectEvent>,
+    mut spawn_events: EventReader<SpawnEvent>,
     mut player_lookup: ResMut<PlayerLookup>,
 ) {
-    for event in connect_events.read() {
+    for event in spawn_events.read() {
         if !player_lookup.map.contains_key(&event.player_id) {
             let initial_translation = Vec3::new(25.0, 20.0, -10.0);
             let entity = commands

@@ -1,6 +1,6 @@
 use bevy::{
     math::{Quat, Vec3},
-    prelude::{Changed, Query, ResMut, Transform},
+    prelude::{Added, Changed, Query, ResMut, Transform},
 };
 
 use crate::{
@@ -21,11 +21,24 @@ pub fn on_transform_change(
         rotations.push((transform.rotation, player.id.clone()));
     }
     if positions.len() > 0 {
-        if let Some(position_event) = MessageOut::position_message(positions) {
-            server.broadcast_message(DefaultChannel::Unreliable, position_event.data);
+        if let Some(position_message) = MessageOut::position_message(positions) {
+            server.broadcast_message(DefaultChannel::Unreliable, position_message.data);
         }
         if let Some(rotation_message) = MessageOut::rotation_message(rotations) {
             server.broadcast_message(DefaultChannel::Unreliable, rotation_message.data);
+        }
+    }
+}
+
+pub fn on_spawn_change(
+    query: Query<(&Player, &Transform), Added<Transform>>,
+    mut server: ResMut<DenariaServer>,
+) {
+    for (player, transform) in &query {
+        if let Some(spawn_message) =
+            MessageOut::spawn_message(player.id.clone(), transform.translation, transform.rotation)
+        {
+            server.broadcast_message(DefaultChannel::ReliableOrdered, spawn_message.data);
         }
     }
 }

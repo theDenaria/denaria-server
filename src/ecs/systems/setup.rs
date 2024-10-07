@@ -18,7 +18,7 @@ use tokio::runtime::Runtime;
 
 use crate::ecs::{
     components::PlayerLookup,
-    events::{ConnectEvent, DisconnectEvent, JumpEvent, LookEvent, MoveEvent},
+    events::{DisconnectEvent, JumpEvent, LookEvent, MoveEvent, SpawnEvent},
 };
 
 pub fn setup(mut commands: Commands) {
@@ -29,7 +29,7 @@ pub fn setup(mut commands: Commands) {
     commands.insert_resource(PlayerLookup::new());
     commands.insert_resource(level_objects);
 
-    commands.insert_resource(Events::<ConnectEvent>::default());
+    commands.insert_resource(Events::<SpawnEvent>::default());
     commands.insert_resource(Events::<DisconnectEvent>::default());
     commands.insert_resource(Events::<LookEvent>::default());
     commands.insert_resource(Events::<MoveEvent>::default());
