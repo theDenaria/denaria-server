@@ -59,7 +59,7 @@ pub fn setup_level(par_commands: ParallelCommands, mut level_objects: ResMut<Lev
                 });
             }
         });
-    trace!("Level Objects spawning completed!");
+    info!("Level Objects setup completed, Denaria Server is ready!!");
 }
 
 pub async fn get_level_objects() -> Vec<LevelObject> {
@@ -99,21 +99,28 @@ pub async fn get_level_objects() -> Vec<LevelObject> {
 
     if cached_level_objects.len() > 0 {
         if cached_level_objects[0].id == i {
+            tracing::info!("Using cache for level objects");
             use_cache = true;
             level_objects = cached_level_objects;
         }
     }
     if !use_cache {
-        trace!("Valid chace not found, getting level objects from level-server");
+        info!("Valid chace not found, getting level objects from level-server");
         loop {
-            let url = format!("https://165.232.64.185/get-object?version=tps_0_1&id={}", i);
+            let url = format!(
+                "{}/get-object?version={}&id={}",
+                level_server_url.as_str(),
+                level_objects_version.as_str(),
+                i
+            );
 
             // Use the blocking client to make a synchronous request
             let res = client.get(&url).send().await.unwrap();
 
             if res.status().is_success() {
+                tracing::info!("Object {} fetched", i);
             } else {
-                trace!("Failed to fetch object {}", i);
+                tracing::trace!("Failed to fetch object {}", i);
                 break;
             }
 
@@ -148,7 +155,7 @@ pub async fn get_level_objects() -> Vec<LevelObject> {
         }
 
         write_to_file(&level_cache_file_path, &level_objects).unwrap();
-        trace!(
+        info!(
             "Latest level objects are cached to file: {}",
             level_cache_file_path.as_str()
         )
