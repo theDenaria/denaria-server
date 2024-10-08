@@ -10,6 +10,8 @@ pub enum TransportServerError {
     InvalidPacketType,
     /// Invalid player id in connect packet
     InvalidPlayerId,
+    /// Invalid session ticket in connect packet
+    InvalidSessionTicket,
     /// Packet size is too small to be a netcode packet.
     PacketTooSmall,
     /// Payload is above the maximum limit
@@ -39,6 +41,7 @@ impl fmt::Display for TransportServerError {
         match *self {
             InvalidPacketType => write!(fmt, "invalid packet type"),
             InvalidPlayerId => write!(fmt, "invalid player_id bytes to deserialize"),
+            InvalidSessionTicket => write!(fmt, "invalid session ticket bytes to deserialize"),
             PacketTooSmall => write!(fmt, "packet is too small"),
             PayloadAboveLimit => write!(
                 fmt,

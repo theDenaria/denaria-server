@@ -1,4 +1,9 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use crate::{
     constants::{
@@ -14,6 +19,7 @@ use super::error::TransportServerError;
 enum ConnectionState {
     Disconnected,
     PendingResponse,
+    Authenticating,
     Connected,
 }
 
@@ -22,12 +28,13 @@ struct Connection {
     confirmed: bool,
     client_id: u64,
     state: ConnectionState,
+    is_authenticated: Arc<Mutex<(bool, String)>>,
     // TODO MAYBE user_data: [u8; NETCODE_USER_DATA_BYTES],
     addr: SocketAddr,
     last_packet_received_time: Duration,
     last_packet_send_time: Duration,
     timeout_seconds: i32,
-    // expire_timestamp: u64,
+    expire_timestamp: u64,
 }
 
 /// A server that can generate packets from connect clients, that are encrypted, or process
@@ -193,13 +200,15 @@ impl TransportServer {
             .entry(addr)
             .or_insert_with(|| Connection {
                 confirmed: false,
-
+                is_authenticated: Arc::new(Mutex::new((false, String::new()))),
                 client_id: client_identifier,
                 last_packet_received_time: self.current_time,
                 last_packet_send_time: self.current_time,
                 addr,
                 state: ConnectionState::PendingResponse,
                 timeout_seconds: 10,
+                // write code to calculate based on timeout_seconds and current_time
+                expire_timestamp: self.current_time.as_secs() + 10 as u64,
             });
         pending.last_packet_received_time = self.current_time;
         pending.last_packet_send_time = self.current_time;
@@ -329,98 +338,150 @@ impl TransportServer {
                     payload,
                     client_identifier,
                 } => {
-                    let bytes = payload.to_vec();
-                    let channel_id = bytes[0];
-                    let messages_len = bytes[1];
-                    let message_type = bytes[5];
-
-                    if bytes.len() < 17 || channel_id != 0 || messages_len != 1 || message_type != 0
-                    {
-                        return Err(TransportServerError::InvalidPacketType);
-                    }
-
-                    let (player_id_bytes, _data) = bytes[6..].split_at(16);
-
-                    let player_id = String::from_utf8(player_id_bytes.to_vec())
-                        .map_err(|_| TransportServerError::InvalidPlayerId)?
-                        .trim_end_matches(char::from(0))
-                        .to_string();
-
-                    tracing::trace!("Connected player id: {:?}", player_id);
-
                     let mut pending = self.pending_clients.remove(&addr).unwrap();
-                    if find_client_slot_by_id(&self.clients, client_identifier).is_some() {
-                        tracing::debug!(
-                            "Ignored connection response for Client {}, already connected.",
-                            client_identifier
-                        );
-                        return Ok(ServerResult::None);
-                    }
-                    match self.clients.iter().position(|c| c.is_none()) {
-                        None => {
-                            let packet = Packet::Disconnect { client_identifier };
-                            let len = packet.encode(&mut self.out)?;
-                            pending.state = ConnectionState::Disconnected;
+
+                    match pending.state {
+                        ConnectionState::Authenticating => {
+                            let is_authenticated = pending.is_authenticated.lock().unwrap();
+                            if is_authenticated.0 {
+                                if find_client_slot_by_id(&self.clients, client_identifier)
+                                    .is_some()
+                                {
+                                    tracing::debug!(
+                                        "Ignored connection response for Client {}, already connected.",
+                                        client_identifier
+                                    );
+                                    return Ok(ServerResult::None);
+                                }
+
+                                match self.clients.iter().position(|c| c.is_none()) {
+                                    None => {
+                                        let packet = Packet::Disconnect { client_identifier };
+                                        let len = packet.encode(&mut self.out)?;
+                                        pending.state = ConnectionState::Disconnected;
+
+                                        pending.last_packet_send_time = self.current_time;
+                                        return Ok(ServerResult::PacketToSend {
+                                            addr,
+                                            payload: &mut self.out[..len],
+                                        });
+                                    }
+                                    Some(client_index) => {
+                                        pending.state = ConnectionState::Connected;
+                                        pending.last_packet_send_time = self.current_time;
+
+                                        let packet = Packet::KeepAlive { client_identifier };
+                                        let len = packet.encode(&mut self.out)?;
+
+                                        let client_id: u64 = pending.client_id;
+
+                                        self.clients[client_index] = Some(pending.clone());
+
+                                        let player_id = is_authenticated.1.clone();
+
+                                        return Ok(ServerResult::ClientConnected {
+                                            client_id,
+                                            addr,
+                                            player_id,
+                                            payload: &mut self.out[..len],
+                                        });
+                                    }
+                                }
+                            } else {
+                                self.pending_clients.insert(addr, pending.clone());
+                            }
+                            return Ok(ServerResult::None);
+                        }
+                        ConnectionState::PendingResponse => {
+                            pending.state = ConnectionState::Authenticating;
+
+                            let bytes = payload.to_vec();
+                            let channel_id = bytes[0];
+                            let messages_len = bytes[1];
+                            let message_type = bytes[5];
+
+                            if bytes.len() < 17
+                                || channel_id != 0
+                                || messages_len != 1
+                                || message_type != 0
+                            {
+                                return Err(TransportServerError::InvalidPacketType);
+                            }
+
+                            let (player_id_bytes, session_ticket_bytes) = bytes[6..].split_at(16);
+
+                            let player_id = String::from_utf8(player_id_bytes.to_vec())
+                                .map_err(|_| TransportServerError::InvalidPlayerId)?
+                                .trim_end_matches(char::from(0))
+                                .to_string();
+
+                            tracing::trace!("Authenticating: {:?}", player_id);
+
+                            let session_ticket = String::from_utf8(session_ticket_bytes.to_vec())
+                                .map_err(|_| TransportServerError::InvalidSessionTicket)?
+                                .trim_end_matches(char::from(0))
+                                .to_string();
+
+                            let is_authenticated = pending.is_authenticated.clone();
+
+                            std::thread::spawn(move || {
+                                let rt = tokio::runtime::Runtime::new().unwrap();
+                                rt.block_on(async move {
+                                    authenticate_player(
+                                        player_id,
+                                        session_ticket,
+                                        is_authenticated,
+                                    )
+                                    .await;
+                                });
+                            });
 
                             pending.last_packet_send_time = self.current_time;
+                            let packet = Packet::KeepAlive { client_identifier };
+                            let len = packet.encode(&mut self.out)?;
+
+                            self.pending_clients.insert(addr, pending);
                             return Ok(ServerResult::PacketToSend {
                                 addr,
                                 payload: &mut self.out[..len],
                             });
                         }
-                        Some(client_index) => {
-                            pending.state = ConnectionState::Connected;
-                            pending.last_packet_send_time = self.current_time;
-
-                            let packet = Packet::KeepAlive { client_identifier };
-                            let len = packet.encode(&mut self.out)?;
-
-                            let client_id: u64 = pending.client_id;
-
-                            self.clients[client_index] = Some(pending);
-
-                            return Ok(ServerResult::ClientConnected {
-                                client_id,
-                                addr,
-                                player_id,
-                                payload: &mut self.out[..len],
-                            });
-                        }
+                        _ => return Ok(ServerResult::None),
                     }
                 }
                 _ => return Ok(ServerResult::None),
             }
-        }
-
-        // Handle new client
-        let packet = Packet::decode(buffer)?;
-        match packet {
-            Packet::ConnectionRequest {
-                connection_prefix,
-                connection_side_id,
-                client_identifier,
-            } => {
-                if (connection_side_id) == 1 {
-                    return self.handle_connection_request(
-                        addr,
-                        connection_prefix,
-                        client_identifier,
-                    );
-                } else {
-                    return Ok(ServerResult::None);
+        } else {
+            // Handle new client
+            let packet = Packet::decode(buffer)?;
+            match packet {
+                Packet::ConnectionRequest {
+                    connection_prefix,
+                    connection_side_id,
+                    client_identifier,
+                } => {
+                    if (connection_side_id) == 1 {
+                        return self.handle_connection_request(
+                            addr,
+                            connection_prefix,
+                            client_identifier,
+                        );
+                    } else {
+                        return Ok(ServerResult::None);
+                    }
                 }
-            }
-            Packet::CreateSession {
-                client_identifier: _,
-                session_id,
-                player_ids,
-            } => {
-                return Ok(ServerResult::CreateSession {
-                    id: session_id,
+                Packet::CreateSession {
+                    client_identifier: _,
+                    session_id,
                     player_ids,
-                });
+                } => {
+                    return Ok(ServerResult::CreateSession {
+                        id: session_id,
+                        player_ids,
+                    });
+                }
+                _ => Ok(ServerResult::None),
             }
-            _ => Ok(ServerResult::None),
         }
     }
 
@@ -466,15 +527,15 @@ impl TransportServer {
     pub fn update(&mut self, duration: Duration) {
         self.current_time += duration;
 
-        // for client in self.pending_clients.values_mut() {
-        //     if self.current_time.as_secs() > client.expire_timestamp {
-        //         tracing::debug!(
-        //             "Pending Client {} disconnected, connection token expired.",
-        //             client.client_id
-        //         );
-        //         client.state = ConnectionState::Disconnected;
-        //     }
-        // }
+        for client in self.pending_clients.values_mut() {
+            if self.current_time.as_secs() > client.expire_timestamp {
+                tracing::debug!(
+                    "Pending Client {} disconnected, connection token expired.",
+                    client.client_id
+                );
+                client.state = ConnectionState::Disconnected;
+            }
+        }
 
         self.pending_clients
             .retain(|_, c| c.state != ConnectionState::Disconnected);
@@ -616,4 +677,46 @@ fn find_client_mut_by_addr(
         Some(c) if c.addr == addr => Some((i, c)),
         _ => None,
     })
+}
+
+async fn authenticate_player(
+    player_id: String,
+    session_ticket: String,
+    is_authenticated: Arc<Mutex<(bool, String)>>,
+) {
+    let client = reqwest::Client::new();
+    let playfab_api_key = std::env::var("PLAYFAB_API_KEY").unwrap();
+    let playfab_api_url = std::env::var("PLAYFAB_API_URL").unwrap();
+    let response = client
+        .post(format!(
+            "{}/Server/AuthenticateSessionTicket", // /Server/AuthenticateSessionTicket
+            playfab_api_url
+        ))
+        .header("X-SecretKey", playfab_api_key)
+        .json(&serde_json::json!({
+            "SessionTicket": session_ticket,
+        }))
+        .send()
+        .await;
+    match response {
+        Ok(response) => {
+            if response.status().is_success() {
+                match response.json::<serde_json::Value>().await {
+                    Ok(response_body) => {
+                        let mut is_authenticated = is_authenticated.lock().unwrap();
+                        is_authenticated.0 = true;
+                        is_authenticated.1 = player_id;
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to authenticate player: {}", e);
+                    }
+                }
+            } else {
+                tracing::error!("Failed to authenticate player: {}", response.status());
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to authenticate player: {}", e);
+        }
+    }
 }
