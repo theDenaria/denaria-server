@@ -101,17 +101,25 @@ impl MessageOut {
         })
     }
 
-    pub fn level_objects_message(level_objects: Vec<LevelObject>) -> Option<MessageOut> {
-        if level_objects.len() > 0 {
-            tracing::info!("{:?}", level_objects);
-            let mut serialized = bincode::serialize(&level_objects).unwrap();
-            serialized.insert(0, 0); // Level Object Message Type 0
-            return Some(MessageOut {
-                event_type: MessageOutType::LevelObjects,
-                data: serialized,
-            });
-        }
-        None
+    pub fn spawn_message(player_id: String, position: Vec3, rotation: Quat) -> Option<MessageOut> {
+        let spawn_details = SpawnDetails {
+            player_id: normalize_player_id(player_id.as_str()),
+            position,
+            rotation: Vec4::new(rotation.x, rotation.y, rotation.z, rotation.w),
+        };
+
+        let spawn_event = SpawnMessageOut {
+            spawns: vec![spawn_details],
+        };
+
+        let mut serialized = bincode::serialize(&spawn_event).unwrap();
+
+        serialized.insert(0, 0); // Spawn Message Type 0
+
+        Some(MessageOut {
+            event_type: MessageOutType::Spawn,
+            data: serialized,
+        })
     }
 
     pub fn fire_message(player_id: String, origin: Vec3, direction: Vec3) -> MessageOut {
@@ -179,7 +187,7 @@ fn normalize_player_id(player_id: &str) -> [u8; 16] {
 
 #[derive(Debug)]
 pub enum MessageOutType {
-    LevelObjects = 0,
+    Spawn = 0,
     Position = 1,
     Rotation = 2,
     Fire = 3,
@@ -237,4 +245,16 @@ struct DisconnectMessage {
 
 struct DisconnectDetails {
     player_id: [u8; 16],
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SpawnMessageOut {
+    spawns: Vec<SpawnDetails>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SpawnDetails {
+    player_id: [u8; 16],
+    position: Vec3,
+    rotation: Vec4,
 }

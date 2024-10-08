@@ -9,7 +9,6 @@ pub enum PacketType {
     Data = 1,
     Disconnect = 2,
     KeepAlive = 3,
-    CreateSession = 100,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -30,11 +29,6 @@ pub enum Packet<'a> {
     Disconnect {
         client_identifier: u64,
     },
-    CreateSession {
-        client_identifier: u64,
-        session_id: u32,
-        player_ids: Vec<String>,
-    },
 }
 
 impl PacketType {
@@ -46,7 +40,6 @@ impl PacketType {
             3 => KeepAlive,
             2 => Disconnect,
             85 => ConnectionRequest,
-            100 => CreateSession,
             _ => return Err(TransportServerError::InvalidPacketType),
         };
         Ok(packet_type)
@@ -60,7 +53,6 @@ impl PacketType {
             KeepAlive => 3,
             Disconnect => 2,
             ConnectionRequest => 85,
-            CreateSession => 100,
         };
         Ok(packet_value)
     }
@@ -73,7 +65,6 @@ impl<'a> Packet<'a> {
             Packet::KeepAlive { .. } => PacketType::KeepAlive,
             Packet::Data { .. } => PacketType::Data,
             Packet::Disconnect { .. } => PacketType::Disconnect,
-            Packet::CreateSession { .. } => PacketType::CreateSession,
         }
     }
 
@@ -104,19 +95,6 @@ impl<'a> Packet<'a> {
             }
             Packet::Disconnect { client_identifier } => {
                 let _ = writer.write_all(&client_identifier.to_le_bytes());
-            }
-            Packet::CreateSession {
-                client_identifier,
-                session_id,
-                player_ids,
-            } => {
-                let _ = writer.write_all(&client_identifier.to_le_bytes());
-                let _ = writer.write_all(&session_id.to_le_bytes());
-                // length needs to be 2 bytes
-                let _ = writer.write_all(&(player_ids.len() as u16).to_le_bytes());
-                for player_id in player_ids {
-                    let _ = writer.write_all(&player_id.as_bytes());
-                }
             }
         }
 
@@ -154,31 +132,6 @@ impl<'a> Packet<'a> {
             PacketType::Disconnect => {
                 let client_identifier = read_u64(cursor)?;
                 Ok(Packet::Disconnect { client_identifier })
-            }
-            PacketType::CreateSession => {
-                let client_identifier = read_u64(cursor)?;
-                let session_id = read_u32(cursor)?;
-                let players_length = read_u16(cursor)?;
-                tracing::info!("players_length: {}", players_length);
-                let player_ids: Vec<[u8; 16]> = (0..players_length)
-                    .map(|_| read_bytes(cursor))
-                    .collect::<Result<Vec<[u8; 16]>, _>>()
-                    .expect("Failed to read player IDs");
-
-                // convert player_ids from [u8; 16] to utf8 Strings, trimming only trailing null bytes
-                let player_ids: Vec<String> = player_ids
-                    .iter()
-                    .map(|id| {
-                        let trimmed_len = id.iter().rposition(|&b| b != 0).map_or(0, |i| i + 1);
-                        String::from_utf8_lossy(&id[..trimmed_len]).into_owned()
-                    })
-                    .collect();
-
-                Ok(Packet::CreateSession {
-                    client_identifier,
-                    session_id,
-                    player_ids,
-                })
             }
         }
     }

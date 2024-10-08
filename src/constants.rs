@@ -16,3 +16,5 @@ pub static GRAVITY: f32 = 9.8;
 pub static TICK_DELTA: Duration = Duration::from_millis(16);
 
 pub static DEBUG_CAMERA_SENSITIVITY: f32 = 0.01;
+
+pub static MAIN_SESSION_ID: u32 = 0;

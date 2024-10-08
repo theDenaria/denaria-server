@@ -22,11 +22,11 @@ use crate::{
             set_debug_metrics_cam,
         },
         handle_events::{
-            handle_character_movement, handle_connect_events, handle_disconnect_events,
-            handle_fire_events, handle_hit_events, handle_look_events,
+            handle_character_movement, handle_disconnect_events, handle_look_events,
+            handle_spawn_events,
         },
         handle_server::{handle_outgoing_messages, handle_server_events, handle_server_messages},
-        on_change::{on_health_change, on_transform_change},
+        on_change::{on_spawn_change, on_transform_change},
         setup::{setup, setup_level},
     },
     server::{
@@ -59,7 +59,7 @@ pub fn new_session(
 
     if !enable_debug_metrics && !enable_debug_cam {
         app.add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(
-            Duration::from_secs_f64(1.0 / 120.0),
+            Duration::from_secs_f64(1.0 / 30.0),
         )));
     } else {
         app.add_plugins(DefaultPlugins)
@@ -91,13 +91,11 @@ pub fn new_session(
                 (
                     handle_character_movement,
                     handle_look_events,
-                    handle_fire_events,
-                    handle_hit_events,
-                    handle_connect_events,
+                    handle_spawn_events,
                     handle_disconnect_events,
                 )
                     .in_set(MySet::HandleGameEvents),
-                (on_transform_change, on_health_change).after(MySet::HandleGameEvents),
+                (on_spawn_change, on_transform_change).after(MySet::HandleGameEvents),
             ),
         );
 
