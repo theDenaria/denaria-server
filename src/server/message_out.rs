@@ -2,8 +2,6 @@ use bevy::math::{Quat, Vec3, Vec4};
 use bincode;
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::systems::setup::LevelObject;
-
 #[derive(Debug)]
 pub struct MessageOut {
     // allow dead code because we have some unused message types
@@ -121,60 +119,6 @@ impl MessageOut {
             data: serialized,
         })
     }
-
-    pub fn fire_message(player_id: String, origin: Vec3, direction: Vec3) -> MessageOut {
-        let fire_details: FireDetails = FireDetails {
-            player_id: normalize_player_id(player_id.as_str()),
-            origin,
-            direction,
-        };
-
-        tracing::info!("{:?}", fire_details);
-
-        let mut serialized = bincode::serialize(&fire_details).unwrap();
-        serialized.insert(0, 3); // Fire Message Type 3
-        MessageOut {
-            event_type: MessageOutType::Fire,
-            data: serialized,
-        }
-    }
-
-    pub fn hit_message(player_id: String, target_id: String, point: Vec3) -> MessageOut {
-        let hit_details: HitDetails = HitDetails {
-            player_id: normalize_player_id(player_id.as_str()),
-            target_id: normalize_player_id(target_id.as_str()),
-            point,
-        };
-
-        tracing::info!("{:?}", hit_details);
-
-        let mut serialized = bincode::serialize(&hit_details).unwrap();
-        serialized.insert(0, 4); // Hit Message Type 4
-        MessageOut {
-            event_type: MessageOutType::Hit,
-            data: serialized,
-        }
-    }
-
-    pub fn health_message(healths: Vec<(String, f32)>) -> MessageOut {
-        let health_details: Vec<HealthDetails> = healths
-            .iter()
-            .map(|(player_id, health)| {
-                let player_id_bytes = normalize_player_id(player_id.as_str());
-                HealthDetails {
-                    player_id: player_id_bytes,
-                    health: *health,
-                }
-            })
-            .collect();
-
-        let mut serialized = bincode::serialize(&health_details).unwrap();
-        serialized.insert(0, 6); // Health Message Type 6
-        MessageOut {
-            event_type: MessageOutType::Health,
-            data: serialized,
-        }
-    }
 }
 
 fn normalize_player_id(player_id: &str) -> [u8; 16] {
@@ -190,9 +134,6 @@ pub enum MessageOutType {
     Spawn = 0,
     Position = 1,
     Rotation = 2,
-    Fire = 3,
-    Hit = 4,
-    Health = 6,
     Disconnect = 10,
 }
 

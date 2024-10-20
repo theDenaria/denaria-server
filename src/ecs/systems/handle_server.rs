@@ -59,8 +59,6 @@ pub fn handle_server_messages(
                 }
             };
 
-            tracing::info!("Received message type {:?}", event_in.event_type);
-
             match event_in.event_type {
                 MessageInType::Rotation => {
                     if let Some(player_entity) = player_lookup.map.get(player_id) {
@@ -103,9 +101,7 @@ pub fn handle_server_messages(
                 }
                 MessageInType::Spawn => match event_in.to_spawn_event() {
                     Ok(event) => {
-                        tracing::info!("Sending spawn event to session");
                         spawn_event.send(event);
-                        tracing::info!("Sent spawn event to session");
                     }
                     Err(_) => {}
                 },

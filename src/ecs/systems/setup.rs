@@ -118,7 +118,7 @@ pub async fn get_level_objects() -> Vec<LevelObject> {
             let res = client.get(&url).send().await.unwrap();
 
             if res.status().is_success() {
-                tracing::info!("Object {} fetched", i);
+                tracing::trace!("Object {} fetched", i);
             } else {
                 tracing::trace!("Failed to fetch object {}", i);
                 break;
