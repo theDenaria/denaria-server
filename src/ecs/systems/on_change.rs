@@ -1,10 +1,10 @@
 use bevy::{
     math::{Quat, Vec3},
-    prelude::{Changed, Query, ResMut, Transform},
+    prelude::{Added, Changed, Query, ResMut, Transform},
 };
 
 use crate::{
-    ecs::components::{Health, Player},
+    ecs::components::Player,
     server::{channel::DefaultChannel, message_out::MessageOut, server::MattaServer},
 };
 
@@ -21,7 +21,7 @@ pub fn on_transform_change(
         rotations.push((transform.rotation, player.id.clone()));
     }
     if positions.len() > 0 {
-        if let Some(position_event) = MessageOut::position_message(positions) {
+        if let Some(position_event) = MessageOut::position_message(positions.clone()) {
             server.broadcast_message(DefaultChannel::Unreliable, position_event.data);
         }
         if let Some(rotation_message) = MessageOut::rotation_message(rotations) {
@@ -30,17 +30,15 @@ pub fn on_transform_change(
     }
 }
 
-pub fn on_health_change(
-    query: Query<(&Player, &Health), Changed<Health>>,
+pub fn on_spawn_change(
+    query: Query<(&Player, &Transform), Added<Transform>>,
     mut server: ResMut<MattaServer>,
 ) {
-    let mut healths: Vec<(String, f32)> = vec![];
-    for (player, health) in &query {
-        healths.push((player.id.clone(), health.0));
-    }
-    if healths.len() > 0 {
-        tracing::info!("Sending health messages: {:?}", healths);
-        let health_message = MessageOut::health_message(healths);
-        server.broadcast_message(DefaultChannel::ReliableOrdered, health_message.data);
+    for (player, transform) in &query {
+        if let Some(spawn_message) =
+            MessageOut::spawn_message(player.id.clone(), transform.translation, transform.rotation)
+        {
+            server.broadcast_message(DefaultChannel::ReliableOrdered, spawn_message.data);
+        }
     }
 }

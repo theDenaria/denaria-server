@@ -5,14 +5,11 @@ use crate::{
     ecs::{
         components::{MoveInput, PlayerLookup},
         events::{ConnectEvent, DisconnectEvent, FireEvent, LookEvent},
-        systems::send_events::{send_disconnect_event, send_fire_event, send_look_event},
+        systems::send_events::{send_disconnect_event, send_look_event},
     },
     server::{
         channel::DefaultChannel,
-        message_in::{
-            digest_fire_message, digest_move_message, digest_rotation_message, MessageIn,
-            MessageInType,
-        },
+        message_in::{digest_move_message, digest_rotation_message, MessageIn, MessageInType},
         server::{MattaServer, ServerEvent},
         transport::transport::ServerTransport,
     },
@@ -52,7 +49,6 @@ pub fn handle_server_messages(
     mut connect_event: EventWriter<ConnectEvent>,
     mut move_query: Query<&mut MoveInput>,
     mut look_event: EventWriter<LookEvent>,
-    mut fire_event: EventWriter<FireEvent>,
 ) {
     // Receive message from channel
 
@@ -86,18 +82,6 @@ pub fn handle_server_messages(
                         tracing::warn!("Player ID not found: {}", player_id);
                     }
                 }
-                MessageInType::Fire => {
-                    let fire_event_in = digest_fire_message(event_in.data).unwrap();
-                    send_fire_event(
-                        player_id,
-                        fire_event_in.cam_origin,
-                        fire_event_in.direction,
-                        fire_event_in.barrel_origin,
-                        &player_lookup,
-                        &mut fire_event,
-                    );
-                }
-
                 MessageInType::Jump => {
                     if let Some(&player_entity) = player_lookup.map.get(player_id) {
                         if let Ok(mut move_input) = move_query.get_mut(player_entity) {

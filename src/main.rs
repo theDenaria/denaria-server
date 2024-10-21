@@ -14,11 +14,11 @@ use ecs::systems::{
         set_debug_metrics_cam,
     },
     handle_events::{
-        handle_character_movement, handle_connect_events, handle_disconnect_events,
-        handle_fire_events, handle_hit_events, handle_look_events,
+        handle_character_movement, handle_disconnect_events, handle_look_events,
+        handle_spawn_events,
     },
     handle_server::{handle_server_events, handle_server_messages, transport_send_packets},
-    on_change::{on_health_change, on_transform_change},
+    on_change::{on_spawn_change, on_transform_change},
     setup::{setup, setup_level},
 };
 
@@ -49,7 +49,7 @@ enum MySet {
 
 fn start_server() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
+        .with_max_level(tracing::Level::INFO)
         .init();
 
     // Optionally log an informational message
@@ -61,7 +61,7 @@ fn start_server() {
 
     if !enable_debug_metrics && !enable_debug_cam {
         app.add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(
-            Duration::from_secs_f64(1.0 / 120.0),
+            Duration::from_secs_f64(1.0 / 30.0),
         )));
     } else {
         app.add_plugins(DefaultPlugins)
@@ -93,14 +93,12 @@ fn start_server() {
                 (
                     handle_character_movement,
                     handle_look_events,
-                    handle_fire_events,
-                    handle_hit_events,
-                    handle_connect_events,
+                    handle_spawn_events,
                     handle_disconnect_events,
                 )
                     .in_set(MySet::HandleGameEvents)
                     .after(MySet::HandleServer),
-                (on_transform_change, on_health_change)
+                (on_transform_change, on_spawn_change)
                     .in_set(MySet::HandleGameStateChanges)
                     .after(MySet::HandleGameEvents),
                 transport_send_packets.after(MySet::HandleGameStateChanges),
