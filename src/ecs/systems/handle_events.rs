@@ -25,6 +25,13 @@ pub fn handle_character_movement(
     for (mut controller, mut move_input, mut v_velocity, output) in query.iter_mut() {
         let mut movement = Vec3::new(move_input.x, 0.0, move_input.z) * VELOCITY_MUL;
 
+        if movement == Vec3::ZERO && move_input.prev_move != Vec3::ZERO {
+            movement = move_input.prev_move;
+            move_input.prev_move = Vec3::ZERO;
+        } else {
+            move_input.prev_move = movement;
+        }
+
         if output.map(|o| o.grounded).unwrap_or(false) {
             v_velocity.0 = move_input.y * JUMP_SPEED;
         } else {
@@ -47,7 +54,6 @@ pub fn handle_look_events(
     mut query: Query<&mut Transform>,
 ) {
     for event in look_events.read() {
-        tracing::info!("Look event: {:?}", event);
         if let Ok(mut transform) = query.get_mut(event.entity) {
             transform.rotation = Quat::from_vec4(event.direction);
         }
