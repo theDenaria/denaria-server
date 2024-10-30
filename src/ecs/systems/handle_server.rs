@@ -9,14 +9,29 @@ use crate::{
     server::{
         channel::DefaultChannel,
         message_in::{MessageIn, MessageInType},
+        message_out::MessageOut,
         server::{DenariaServer, ServerEvent},
     },
 };
 
+use super::setup::Tick;
+
 pub fn handle_server_events(
     mut server: ResMut<DenariaServer>,
     mut disconnect_event: EventWriter<DisconnectEvent>,
+    mut tick: ResMut<Tick>,
 ) {
+    if tick.0 == u16::MAX {
+        tick.0 = 2;
+    } else {
+        tick.0 += 1;
+    }
+
+    if tick.0 % 60 == 0 {
+        let message = MessageOut::tick_sync_message(tick.0);
+        server.broadcast_message(DefaultChannel::Unreliable, message.data);
+    }
+
     server.update(TICK_DELTA);
     server.process_server_transport_messages();
 

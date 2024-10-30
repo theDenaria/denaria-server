@@ -58,9 +58,8 @@ pub fn new_session(
         std::env::var("ENABLE_DEBUG_CAM").is_ok_and(|v| v.to_lowercase() == "true");
 
     if !enable_debug_metrics && !enable_debug_cam {
-        app.add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(
-            Duration::from_secs_f64(1.0 / 30.0),
-        )));
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Time::<Fixed>::from_hz(30.0));
     } else {
         app.add_plugins(DefaultPlugins)
             .add_plugins(FrameTimeDiagnosticsPlugin)
@@ -81,12 +80,12 @@ pub fn new_session(
     app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_systems(Startup, (setup, setup_level).chain())
         .add_systems(
-            PreUpdate,
+            FixedPreUpdate,
             (handle_server_events, handle_server_messages).chain(),
         )
-        .add_systems(PostUpdate, handle_outgoing_messages)
+        .add_systems(FixedPostUpdate, handle_outgoing_messages)
         .add_systems(
-            Update,
+            FixedUpdate,
             (
                 (
                     handle_character_movement,

@@ -21,6 +21,9 @@ use crate::ecs::{
     events::{DisconnectEvent, JumpEvent, LookEvent, MoveEvent, SpawnEvent},
 };
 
+#[derive(Debug, Resource)]
+pub struct Tick(pub u16);
+
 pub fn setup(mut commands: Commands) {
     let objects: Vec<LevelObject> = vec![];
 
@@ -28,7 +31,7 @@ pub fn setup(mut commands: Commands) {
 
     commands.insert_resource(PlayerLookup::new());
     commands.insert_resource(level_objects);
-
+    commands.insert_resource(Tick(0));
     commands.insert_resource(Events::<SpawnEvent>::default());
     commands.insert_resource(Events::<DisconnectEvent>::default());
     commands.insert_resource(Events::<LookEvent>::default());

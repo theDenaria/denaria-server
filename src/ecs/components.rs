@@ -1,4 +1,7 @@
-use bevy::prelude::{Bundle, Component, Entity, Resource};
+use bevy::{
+    math::Vec3,
+    prelude::{Bundle, Component, Entity, Resource},
+};
 use std::collections::HashMap;
 
 #[derive(Default, Component)]
@@ -14,6 +17,7 @@ pub struct MoveInput {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+    pub prev_move: Vec3,
 }
 
 #[derive(Bundle)]
@@ -31,6 +35,7 @@ impl Default for PlayerBundle {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
+                prev_move: Vec3::ZERO,
             },
             v_velocity: VerticalVelocity(0.0),
         }

@@ -1,6 +1,6 @@
 use bevy::{
     math::{Quat, Vec3},
-    prelude::{Added, Changed, Query, ResMut, Transform},
+    prelude::{Added, Changed, Query, Res, ResMut, Transform},
 };
 
 use crate::{
@@ -8,10 +8,13 @@ use crate::{
     server::{channel::DefaultChannel, message_out::MessageOut, server::DenariaServer},
 };
 
+use super::setup::Tick;
+
 // Gets the Position component of all Entities whose Velocity has changed since the last run of the System
 pub fn on_transform_change(
     query: Query<(&Player, &Transform), Changed<Transform>>,
     mut server: ResMut<DenariaServer>,
+    tick: Res<Tick>,
 ) {
     let mut positions: Vec<(Vec3, String)> = vec![];
     let mut rotations: Vec<(Quat, String)> = vec![];
@@ -21,7 +24,7 @@ pub fn on_transform_change(
         rotations.push((transform.rotation, player.id.clone()));
     }
     if positions.len() > 0 {
-        if let Some(position_message) = MessageOut::position_message(positions) {
+        if let Some(position_message) = MessageOut::position_message(positions, tick.0) {
             server.broadcast_message(DefaultChannel::Unreliable, position_message.data);
         }
         if let Some(rotation_message) = MessageOut::rotation_message(rotations) {

@@ -21,7 +21,7 @@ impl MessageOut {
         with_header
     }
 
-    pub fn position_message(positions: Vec<(Vec3, String)>) -> Option<MessageOut> {
+    pub fn position_message(positions: Vec<(Vec3, String)>, tick: u16) -> Option<MessageOut> {
         let position_details: Vec<PositionDetails> = positions
             .iter()
             .map(|(position, player_id)| {
@@ -35,6 +35,7 @@ impl MessageOut {
 
         if positions.len() > 0 {
             let position_event = PositionMessageOut {
+                tick,
                 positions: position_details,
             };
 
@@ -119,6 +120,16 @@ impl MessageOut {
             data: serialized,
         })
     }
+
+    pub fn tick_sync_message(tick: u16) -> MessageOut {
+        let tick_sync_event = TickSyncMessageOut { tick };
+        let mut serialized = bincode::serialize(&tick_sync_event).unwrap();
+        serialized.insert(0, 11); // Tick Sync Message Type 11
+        MessageOut {
+            event_type: MessageOutType::TickSync,
+            data: serialized,
+        }
+    }
 }
 
 fn normalize_player_id(player_id: &str) -> [u8; 16] {
@@ -135,10 +146,12 @@ pub enum MessageOutType {
     Position = 1,
     Rotation = 2,
     Disconnect = 10,
+    TickSync = 11,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PositionMessageOut {
+    tick: u16,
     positions: Vec<PositionDetails>,
 }
 
@@ -198,4 +211,9 @@ struct SpawnDetails {
     player_id: [u8; 16],
     position: Vec3,
     rotation: Vec4,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TickSyncMessageOut {
+    tick: u16,
 }
